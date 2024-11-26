@@ -30,7 +30,7 @@ class Collection:
     def query(self, query_embeddings):
         similarities = [self.cosine_similarity(query_embedding, embedding) for query_embedding in query_embeddings for embedding in self.embeddings]
         sorted_similarities = [i[0] for i in sorted(enumerate(similarities), key=lambda x:x[1])]
-        print(similarities, sorted_similarities)
+        # print(similarities, sorted_similarities)
         # similarities.sort()
         # best_match_index = similarities.index(max(similarities))
         # print(similarities)
