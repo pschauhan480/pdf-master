@@ -1,0 +1,7 @@
+fastapi==0.115.5
+openai==1.55.1
+pydantic==2.10.1
+pypdf==5.1.0
+Requests==2.32.3
+thefuzz==0.22.1
+ulid_py==1.1.0

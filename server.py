@@ -1,3 +1,4 @@
+# Global Imports
 import io
 import os
 import json
@@ -15,8 +16,10 @@ from pypdf import PdfReader
 
 from inmemorydb import InMemoryVectorDB
 
+# initialize vector db for embeddings
 memorydb = InMemoryVectorDB()
 
+# llm client, can be initialized to point to self hosted instances too
 openai_api_key = os.environ['OPENAI_API_KEY']
 openai_api_base = "https://api.openai.com/v1/"
 
@@ -25,8 +28,10 @@ client = OpenAI(
     base_url=openai_api_base,
 )
 
+# can be made configuration
 minimum_confidence_score = 0.75
 
+# request model for validations
 class Request(BaseModel):
     url: str
     questions: list[str]
@@ -58,10 +63,11 @@ app = FastAPI()
 async def answer_questions(request: Request):
     resp = requests.get(request.url)
     # print(resp.text)
+    
+    # read pdf from url and convert to text for embeddings
     on_fly_mem_obj = io.BytesIO(resp.content)
     pdf_file = PdfReader(on_fly_mem_obj)
     
-    number_of_pages = len(pdf_file.pages)
     page = pdf_file.pages[0]
     text = page.extract_text()
 
@@ -91,10 +97,10 @@ async def answer_questions(request: Request):
 
     for question in request.questions:
         print("question:", question)
+        # embed question and match for similarity with data of pdf
         question_response = {
             "question": question,
         }
-        # search_query = "EUR to INR conversion rate on 17-03-2024"
         tokenized_query, _ = tokenize_documents([question])
         query_embeddings = vectorize_documents(tokenized_query, vocabulary)
 
@@ -107,6 +113,7 @@ async def answer_questions(request: Request):
         for document in results['documents']:
             context += document
 
+        # append context to the question being asked by the user
         chat_response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -116,6 +123,7 @@ async def answer_questions(request: Request):
         )
         # print( chat_response)
 
+        # check for confidence score and form final response
         if len(chat_response.choices) > 0:
             print("Chat response:", chat_response.choices[0].message.content)
             choice = json.loads(str(chat_response.choices[0].message.content))
@@ -128,6 +136,7 @@ async def answer_questions(request: Request):
         final_responses.append(question_response)
     
     return {
+        "id": requestid,
         "response": final_responses
     }
 
