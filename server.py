@@ -1,5 +1,6 @@
 import io
 import os
+import json
 from openai import OpenAI
 import ulid
 
@@ -24,6 +25,7 @@ client = OpenAI(
     base_url=openai_api_base,
 )
 
+minimum_confidence_score = 0.75
 
 class Request(BaseModel):
     url: str
@@ -85,8 +87,13 @@ async def answer_questions(request: Request):
         ids=documentids,
     )
 
+    final_responses = []
+
     for question in request.questions:
         print("question:", question)
+        question_response = {
+            "question": question,
+        }
         # search_query = "EUR to INR conversion rate on 17-03-2024"
         tokenized_query, _ = tokenize_documents([question])
         query_embeddings = vectorize_documents(tokenized_query, vocabulary)
@@ -94,20 +101,33 @@ async def answer_questions(request: Request):
         results = collection.query(
             query_embeddings=query_embeddings,
         )
-        print(results)
+        # print(results)
+
+        context = ""
+        for document in results['documents']:
+            context += document
+
+        chat_response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Based on this given text: \"{context}\" answer the question: \"{question}\" and give confidence score also of how much you think the answer is correct in the format of json with two keys as 'answer' and 'score'. Don't attach any markdown specific tags. just return raw json as text".format(context=context, question=question)},
+            ]
+        )
+        # print( chat_response)
+
+        if len(chat_response.choices) > 0:
+            print("Chat response:", chat_response.choices[0].message.content)
+            choice = json.loads(str(chat_response.choices[0].message.content))
+            if choice["score"] < minimum_confidence_score:
+                question_response["answer"] = "Data Not Available"
+            else:
+                question_response["answer"] = choice["answer"]
+        else:
+            question_response["answer"] = "Data Not Available"
+        final_responses.append(question_response)
     
     return {
-        "pages": number_of_pages,
-        "text": text,
+        "response": final_responses
     }
-
-
-# chat_response = client.chat.completions.create(
-#     model="gpt-4o-mini",
-#     messages=[
-#         {"role": "system", "content": "You are a helpful assistant."},
-#         {"role": "user", "content": "Tell me a joke."},
-#     ]
-# )
-# print("Chat response:", chat_response)
 
